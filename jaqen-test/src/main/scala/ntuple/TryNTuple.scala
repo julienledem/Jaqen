@@ -2,7 +2,6 @@ package ntuple
 
 import ntuple.NTuple._
 import printexpr.PrintExpr._
-import litsing.LiteralSingleton._
 
 class Foo {
 
