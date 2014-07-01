@@ -1,0 +1,96 @@
+package ntuple
+
+import ntuple.NTuple._
+import printexpr.PrintExpr._
+import litsing.LiteralSingleton._
+
+class Foo {
+
+}
+
+object TryNTuple {
+  def main(args: Array[String]) {
+//    printExpr(new NTuple1[Any, Foo](new Foo))
+    /*
+               param: new ntuple.NTuple1[Any,ntuple.Foo](new Foo())
+           raw param: Apply(Select(New(TypeTree().setOriginal(AppliedTypeTree(Ident(ntuple.NTuple1), List(TypeTree().setOriginal(Select(Ident(scala), scala.Any)), TypeTree().setOriginal(Ident(ntuple.Foo)))))), nme.CONSTRUCTOR), List(Apply(Select(New(Ident(ntuple.Foo)), nme.CONSTRUCTOR), List())))
+raw param actualType: TypeRef(ThisType(ntuple), ntuple.NTuple1, List(TypeRef(ThisType(scala), scala.Any, List()), TypeRef(ThisType(ntuple), ntuple.Foo, List())))
+     */
+//    println()
+//    printExpr(^("foo"))
+//    val a = ^("foo")
+    /*
+               param: new litsing.LiteralSingleton[String("foo")]()
+           raw param: Apply(Select(New(TypeTree()), nme.CONSTRUCTOR), List())
+raw param actualType: TypeRef(ThisType(litsing), litsing.LiteralSingleton, List(ConstantType(Constant(foo))))
+     */
+
+//    println()
+//    printExpr(new Foo)
+/*
+               param: new Foo()
+           raw param: Apply(Select(New(Ident(ntuple.Foo)), nme.CONSTRUCTOR), List())
+raw param actualType: TypeRef(ThisType(ntuple), ntuple.Foo, List())
+
+ */
+
+//    printExpr(NTuple1.t("foo", "bar"))
+
+//    printExpr(NTuple1.t("a", new Foo))
+
+    val name = "foo"
+    // does not compile: name must be a literal
+//    val tuple0 = NTuple1.t(name, "bar")
+
+    val map = Map("a" -> 1, "b" -> "boo")
+    val ma = map("a")
+    val mb = map("b")
+    // runtime error: key not found: c
+//    val mc = map("c")
+
+    val tuple00 = t("a" -> 1)
+    println('symbol.name)
+    val tuple000 = t('a -> 1)
+    val tuple001 = t("a" -> 1, "b" -> "bar")
+    val b001 = tuple001("b")
+    val a001 = tuple001('a)
+    // does not compile: tuple001 does not contain key "c"
+//    val c001 = tuple001("c")
+
+    val tuple01 = t("a" -> 1)
+    val a01 = tuple01("a")
+
+    val val1 = 1
+    val tuple1 = t("a" -> val1)
+    println(tuple1)
+
+    val v: Int = tuple1("a")
+    println(v)
+
+    // does not compile: name is not a literal
+//    val v1: Int = tuple1(name)
+
+    // does not compile: tuple1 does not contain key "b"
+//    val v2 = tuple1("b")
+
+    val tuple2 = t("a" -> 1, "b" -> "bar")
+    println(tuple2)
+
+    val v3 = tuple2("a")
+    println(v3)
+
+    val v4 = tuple2("b")
+    println(v4)
+
+    // does not compile: tuple2 does not contain key "c"
+//    val v5 = tuple2("c")
+    val b = "FOOBAR"
+    val tuple3 = t(b)
+    println(tuple3("b"))
+    println(tuple3('b))
+
+    val tuple4 = t('a->1, 'a->2)
+//    println(tuple4('a))
+
+  }
+}
