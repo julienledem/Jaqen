@@ -9,7 +9,11 @@ class Foo {
 
 object TryNTuple {
   def main(args: Array[String]) {
-//    printExpr(new NTuple1[Any, Foo](new Foo))
+//     printExpr(println(List("a" -> 0, "b" -> "1")))
+//     printExpr(t("a" -> "FOO", "b" -> 3).mkString)
+     println("mkString: " + t("a" -> "FOO", "b" -> 3).mkString)
+
+     //    printExpr(new NTuple1[Any, Foo](new Foo))
     /*
                param: new ntuple.NTuple1[Any,ntuple.Foo](new Foo())
            raw param: Apply(Select(New(TypeTree().setOriginal(AppliedTypeTree(Ident(ntuple.NTuple1), List(TypeTree().setOriginal(Select(Ident(scala), scala.Any)), TypeTree().setOriginal(Ident(ntuple.Foo)))))), nme.CONSTRUCTOR), List(Apply(Select(New(Ident(ntuple.Foo)), nme.CONSTRUCTOR), List())))
@@ -91,5 +95,9 @@ raw param actualType: TypeRef(ThisType(ntuple), ntuple.Foo, List())
     val tuple4 = t('a->1, 'a->2)
 //    println(tuple4('a))
 
+    val tuple5 = t("a" -> 1)
+    val tuple6 = t("b" -> "bar")
+    val tuple7 = tuple5 ++ tuple6
+    println("tuple7 " + tuple7)
   }
 }

@@ -36,5 +36,18 @@ object DemoNTuple {
     val tuple3 = t(b)
     println(tuple3('b))
 //    val tuple4 = t(b + 3)
+
+    case class Person(val name: String, val age: Int)
+
+    val input = List(Person("John", 10), Person("Jack", 5))
+
+    val r = input
+      .map((in) => t(
+          'name -> in.name,
+          'laterAge -> (in.age + 10)
+          )
+      )
+      .filter(_('laterAge) < 18)
+    print(r)
   }
 }

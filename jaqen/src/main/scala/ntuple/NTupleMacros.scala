@@ -31,9 +31,14 @@ object NTupleMacros {
     }
   }
 
-  def nameType(c: Context)(name: c.Expr[String]): c.universe.Type = {
+  def nameTypeFromExpr(c: Context)(name: c.Expr[String]): c.universe.Type = {
     import c.universe._
-    ConstantType(Constant(keyName(c)(name)))
+    nameType(c)(keyName(c)(name))
+  }
+
+  def nameType(c: Context)(name: Any): c.universe.Type = {
+    import c.universe._
+    ConstantType(Constant(name))
   }
 
   def name[N](c: Context)(wttn: c.WeakTypeTag[N]) = {
@@ -92,13 +97,18 @@ object NTupleMacros {
     c.Expr[String](Literal(Constant(n)))
   }
 
+  def wttToParams(c: Context)(wtt: c.WeakTypeTag[_]) = {
+    import c.universe._
+    wtt.tpe match {
+      case TypeRef(ThisType(ntuple), name, parameters) if (ntuple.fullName == "ntuple") => (name.fullName, parameters)
+      case _ => c.abort(c.enclosingPosition, showRaw(wtt) + " is not an understood type")
+    }
+  }
+
   def applyImp[T](c: Context)(key: c.Expr[Any])(implicit wttt: c.WeakTypeTag[T]) = {
     import c.universe._
     val kName = keyName(c)(key)
-    val (n, params) = wttt.tpe match {
-      case TypeRef(ThisType(ntuple), name, parameters) if (ntuple.fullName == "ntuple") => (name.fullName, parameters)
-      case _ => c.abort(c.enclosingPosition, showRaw(wttt) + " is not an understood type")
-    }
+    val (n, params) = wttToParams(c)(wttt)
 
     val r = params
             .zipWithIndex
@@ -113,15 +123,67 @@ object NTupleMacros {
     else c.abort(c.enclosingPosition, "more than one result for key " + kName)
   }
 
+  // TODO
+  def plusplusImpl[T1,T2](c: Context)(t: c.Expr[T2])(implicit wttt1: c.WeakTypeTag[T1], wttt2: c.WeakTypeTag[T2]) = {
+    import c.universe._
+    val (n1, params1) = wttToParams(c)(wttt1)
+    val (n2, params2) = wttToParams(c)(wttt2)
+    val size = (params1.size + params2.size) / 2
+    val keys =
+      (params1 ++ params2)
+      .zipWithIndex
+      .filter(_._2 % 2 == 0)
+      .map(_._1).map{ case ConstantType(Constant(name)) => name}
+    val t1params = (1 to params1.size / 2) map ((i) => c.Expr[Any](Select(c.prefix.tree, newTermName("_" + i))))
+    val t2params = (1 to params2.size / 2) map ((i) => c.Expr[Any](Select(t.tree, newTermName("_" + i))))
+    val values = t1params ++ t2params
+    val types = (params1 ++ params2)
+      .zipWithIndex
+      .filter(_._2 % 2 == 1)
+      .map(_._1)
+    if (size == 0) reify { new NTuple0 }
+    else if (size == 1) NTuple1.newTuple0(c)(keys(0), values(0), types)
+    else if (size == 2) NTuple2.newTuple0(c)(keys(0), values(0), keys(1), values(1), types)
+    else c.abort(c.enclosingPosition, "size can only be up to 2. Got " + size)
+  }
+
+  def mkStringImpl[T](c: Context)(implicit wttt: c.WeakTypeTag[T]) = {
+    import c.universe._
+    val (n, params) = wttToParams(c)(wttt)
+
+    val entries = params
+            .zipWithIndex
+            .filter(_._2 % 2 == 0)
+            .map((t) => (t._1, t._2 / 2))
+            .collect {
+          case (ConstantType(Constant(name)), index) => (name, index + 1)
+        }
+
+    val toStringParams = entries.flatMap {
+      case (name, index) => List(
+        Literal(Constant(name)),
+        Literal(Constant(" -> ")),
+        Select(c.prefix.tree, newTermName("_" + index)),
+        Literal(Constant(", "))
+        )
+    }.dropRight(1)
+
+    val list = c.Expr[List[Any]](Apply(Select(reify(List).tree, newTermName("apply")), toStringParams))
+
+    reify {
+      "(" + list.splice.mkString("") + ")"
+    }
+  }
+
 }
 
 trait NTuple[T <: NTuple[T]] {
 
   def apply(key: Any) = macro applyImp[T]
 
-//  override def toString = myToString[T]
+  def ++[T2 <: NTuple[T2]](t: T2) = macro NTupleMacros.plusplusImpl[T,T2]
 
-//  def myToString[T] = macro toStringImpl[T]
+  def mkString = macro mkStringImpl[T]
 
 }
 
@@ -155,18 +217,14 @@ object NTuple0 {
 
     NTuple1.newTupleP(c)(pair1)
   }
-//
-//  def applyImpl(c: Context)(key: c.Expr[Any]) = {
-//    import c.universe._
-//    fail(c)(key)
-//  }
+
 }
 
 class NTuple1[N1, T1](val _1: T1) extends NTuple[NTuple1[N1, T1]] {
 
-//  def apply(key: Any) = macro NTuple1.applyImpl[N1]
-
   def +(pair2: (Any, Any)) = macro NTuple1.plusImpl[N1, T1]
+
+  override def toString = (_1).toString
 
 }
 
@@ -186,25 +244,6 @@ object NTuple1 {
     NTuple2.newTuple(c)(key1, value1, key2, value2)
   }
 
-//  def applyImpl[N1](c: Context)(key: c.Expr[Any])(implicit wttn1: c.WeakTypeTag[N1]) = {
-//    import c.universe._
-//
-//    val e = c.Expr[NTuple1[_,_]](c.prefix.tree)
-//    if (checkMatch(c)(key, wttn1)) reify { e.splice._1 }
-//    else fail(c)(key)
-//  }
-
-//  def toStringImpl[N1](c: Context)(implicit wttn1: c.WeakTypeTag[N1]) = {
-//    import c.universe._
-//
-//    val e = c.Expr[NTuple1[_,_]](c.prefix.tree)
-//
-//    val name1 = name(c)(wttn1)
-//    reify{
-//      "(" + show(name1) + "=" +  e.splice._1 + ")"
-//    }
-//  }
-
   def newTupleP(c: Context)(pair: c.Expr[Any]) = {
     import c.universe._
 
@@ -218,33 +257,33 @@ object NTuple1 {
 
     val valueType1 = v.actualType
 
-    val nameType1 = nameType(c)(name)
+    val nameType1 = nameTypeFromExpr(c)(name)
 
     val t = appliedType(typeOf[ntuple.NTuple1[_,_]].typeConstructor, List(nameType1, valueType1))
     c.Expr[ntuple.NTuple1[_,_]](`new`(c)(t, List(v.tree)))
+  }
+
+
+  def newTuple0(c: Context)(name1: Any, v1: c.Expr[Any], types: List[c.universe.Type]) = {
+    import c.universe._
+    Log("NTuple1.newTuple0", name1, v1)
+    val nameType1 = nameType(c)(name1)
+    Log("nameType1", nameType1)
+
+    val t = appliedType(typeOf[ntuple.NTuple1[_,_]].typeConstructor, List(nameType1, types(0)))
+    Log("t", t)
+    c.Expr[ntuple.NTuple2[_,_,_,_]](`new`(c)(t, List(v1.tree)))
   }
 
 }
 
 class NTuple2[N1, T1, N2, T2] (val _1: T1, val _2: T2) extends NTuple[NTuple2[N1, T1, N2, T2]] {
 
-//  def apply[A](key: Any) = macro NTuple2.applyImpl[N1, T1, N2, T2, A]
-
-//  override def toString = "(" + getName[N1] + "=" + _1 + ", " + getName[N2] + "=" + _2 + ")"
+  override def toString = (_1, _2).toString
 
 }
 
 object NTuple2 {
-
-//  def applyImpl[N1, T1, N2, T2, A: c.WeakTypeTag](c: Context)(key: c.Expr[Any])
-//  (implicit wtta: c.WeakTypeTag[A], wttn1: c.WeakTypeTag[N1], wttt1: c.WeakTypeTag[T1], wttn2: c.WeakTypeTag[N2], wttt2: c.WeakTypeTag[T2]) = {
-//    import c.universe._
-//
-//    val e = c.Expr[NTuple2[_,_,_,_]](c.prefix.tree)
-//    if (checkMatch(c)(key, wttn1)) reify { e.splice._1 }
-//    else if (checkMatch(c)(key, wttn2)) reify { e.splice._2 }
-//    else fail(c)(key)
-//  }
 
   def newTupleP(c: Context)(pair1: c.Expr[Any], pair2: c.Expr[Any]) = {
     import c.universe._
@@ -256,16 +295,33 @@ object NTuple2 {
   }
 
   def newTuple(c: Context)(name1: c.Expr[String], v1: c.Expr[Any], name2: c.Expr[String], v2: c.Expr[Any]) = {
-import c.universe._
-
-    val nameType1 = nameType(c)(name1)
-    val nameType2 = nameType(c)(name2)
+    import c.universe._
+    Log("NTuple2.newTuple", name1, v1, name2, v2)
+    val nameType1 = nameTypeFromExpr(c)(name1)
+    Log("nameType1", nameType1)
+    val nameType2 = nameTypeFromExpr(c)(name2)
+    Log("nameType2", nameType2)
 
     val valueType1 = v1.actualType
+    Log("valueType1", valueType1)
     val valueType2 = v2.actualType
+    Log("valueType2", valueType2)
 
     val t = appliedType(typeOf[ntuple.NTuple2[_,_,_,_]].typeConstructor, List(nameType1, valueType1, nameType2, valueType2))
+    Log("t", t)
+    c.Expr[ntuple.NTuple2[_,_,_,_]](`new`(c)(t, List(v1.tree, v2.tree)))
+  }
 
+  def newTuple0(c: Context)(name1: Any, v1: c.Expr[Any], name2: Any, v2: c.Expr[Any], types: List[c.universe.Type]) = {
+    import c.universe._
+    Log("NTuple2.newTuple0", name1, v1, name2, v2)
+    val nameType1 = nameType(c)(name1)
+    Log("nameType1", nameType1)
+    val nameType2 = nameType(c)(name2)
+    Log("nameType2", nameType2)
+
+    val t = appliedType(typeOf[ntuple.NTuple2[_,_,_,_]].typeConstructor, List(nameType1, types(0), nameType2, types(1)))
+    Log("t", t)
     c.Expr[ntuple.NTuple2[_,_,_,_]](`new`(c)(t, List(v1.tree, v2.tree)))
   }
 
