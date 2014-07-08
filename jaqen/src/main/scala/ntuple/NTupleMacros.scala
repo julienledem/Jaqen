@@ -11,41 +11,27 @@ import scala.reflect.api.Symbols
 
 object NTupleMacros {
 
-  def checkMatch[N](c: Context)(key: c.Expr[Any], wttn: c.WeakTypeTag[N]) = {
-    name(c)(wttn) == keyName(c)(key)
-  }
-
-  def fail(c: Context)(key: c.Expr[Any]) = {
+  def keyName(c: Context)(key: c.Tree): Any = {
     import c.universe._
-    c.abort(c.enclosingPosition, show(c.prefix.tree) + " does not contain key: " + show(key.tree))
-  }
-
-  def keyName(c: Context)(key: c.Expr[Any]) = {
-    import c.universe._
-    key.tree match {
+    key match {
       case Literal(Constant(v)) => v
       case Apply(Select(Select(Ident(scala), symbol), apply), List(Literal(Constant(key))))
-                   if (apply.decoded == "apply" && scala.decoded == "scala" && apply.decoded == "apply")
+                   if (apply.decoded == "apply" && scala.decoded == "scala")
                      => key
-      case _ => c.abort(c.enclosingPosition, show(key.tree) + " is not a literal")
+      case _ => c.abort(c.enclosingPosition, show(key) + " is not a literal")
     }
   }
 
-  def nameTypeFromExpr(c: Context)(name: c.Expr[Any]): c.universe.Type = {
-    import c.universe._
-    nameType(c)(keyName(c)(name))
-  }
-
-  def nameType(c: Context)(name: Any): c.universe.Type = {
+  def keyNameToKeyType(c: Context)(name: Any): c.universe.Type = {
     import c.universe._
     ConstantType(Constant(name))
   }
 
-  def name[N](c: Context)(wttn: c.WeakTypeTag[N]) = {
+  def keyTypeToKeyName(c: Context)(t: c.Type) = {
     import c.universe._
-    wttn.tpe match {
+    t match {
       case ConstantType(Constant(name)) => name
-      case _ => c.abort(c.enclosingPosition, showRaw(wttn.tpe) + " type is not understood")
+      case _ => c.abort(c.enclosingPosition, showRaw(t) + " type is not understood")
     }
   }
 
@@ -54,7 +40,7 @@ object NTupleMacros {
     Apply(Select(New(TypeTree(t)), nme.CONSTRUCTOR), params)
   }
 
-  def pairToKV(c: Context)(pair: c.Expr[Any]) = {
+  def pairToKV(c: Context)(pair: c.Expr[Any]): (Any, c.universe.Tree) = {
     import c.universe._
 
     (pair.tree match {
@@ -69,30 +55,16 @@ object NTupleMacros {
              List(TypeTree())),
              List(value)
           ) if (arrow.decoded == "->" && assoc.decoded == "any2ArrowAssoc")
-             => key match {
-                 case Literal(Constant(key)) => Some(key, value)
-                 case Apply(Select(Select(Ident(scala), symbol), apply), List(Literal(Constant(key))))
-                   if (apply.decoded == "apply" && scala.decoded == "scala" && apply.decoded == "apply")
-                     => Some(key, value)
-                 case _ => None
-                }
+             => Some(keyName(c)(key), value)
       // allow identifiers directly
       case value@Ident(name) => Some(name.decoded, value)
       // do we want magically named "expression" -> expression ?
 //      case v => Some((show(v), v))
-      case v@_ => Log("INVALID KV", showRaw(v)); None
+      case _ => None
     }) match {
-      case Some((key, value)) => (c.Expr[Any](Literal(Constant(key))), c.Expr[Any](value))
+      case Some(kv) => kv
       case _ => c.abort(c.enclosingPosition, show(pair.tree) + " is not a valid key-value pair")
     }
-  }
-
-  def getName[N]: Any = macro getNameImpl[N]
-
-  def getNameImpl[N: c.WeakTypeTag](c: Context)(implicit wttn: c.WeakTypeTag[N]): c.Expr[Any] = {
-    import c.universe._
-    val n = name[N](c)(wttn)
-    c.Expr[Any](Literal(Constant(n)))
   }
 
   def wttToParams(c: Context)(wtt: c.WeakTypeTag[_]) = {
@@ -108,8 +80,7 @@ object NTupleMacros {
     params
       .zipWithIndex
       .filter(_._2 % 2 == 0)
-      .map(_._1)
-      .map { case ConstantType(Constant(name)) => name }
+      .map((t) => keyTypeToKeyName(c)(t._1))
   }
 
   def types(c: Context)(params: List[c.universe.Type]) = {
@@ -127,15 +98,15 @@ object NTupleMacros {
 
   def applyImp[T](c: Context)(key: c.Expr[Any])(implicit wttt: c.WeakTypeTag[T]) = {
     import c.universe._
-    val kName = keyName(c)(key)
+    val kName = keyName(c)(key.tree)
     val params = wttToParams(c)(wttt)
 
     val r = keys(c)(params).zipWithIndex.collect {
           case (name, index) if (name == kName) => index + 1
         }
 
-    if (r.isEmpty) fail(c)(key)
-    else if (r.size == 1) c.Expr[Any](Select(c.prefix.tree, newTermName("_" + r(0))))
+    if (r.isEmpty) c.abort(c.enclosingPosition, show(c.prefix.tree) + " does not contain key " + kName)
+    else if (r.size == 1) c.Expr[Any](derefField(c)(c.prefix.tree, r(0)))
     else c.abort(c.enclosingPosition, "more than one result for key " + kName)
   }
 
@@ -149,7 +120,7 @@ object NTupleMacros {
     val finalTypes = types(c)(params1 ++ params2)
 
     val finalTypeParameters = finalKeys.zip(finalTypes).flatMap {
-      case (key, value) => List(nameType(c)(key), value)
+      case (key, value) => List(keyNameToKeyType(c)(key), value)
     }
 
     val t1params = (1 to params1.size / 2) map ((i) => derefField(c)(c.prefix.tree, i))
@@ -189,7 +160,7 @@ object NTupleMacros {
     else if (size == 1) typeOf[ntuple.NTuple1[_,_]]
     else if (size == 2) typeOf[ntuple.NTuple2[_,_,_,_]]
     else if (size == 3) typeOf[ntuple.NTuple3[_,_,_,_,_,_]]
-    else typeOf[Unit]
+    else c.abort(c.enclosingPosition, "maximum tuple size is 3. Got " + size)
     appliedType(t.typeConstructor, finalTypeParams)
   }
 
@@ -198,10 +169,10 @@ object NTupleMacros {
     val keyValues = pairs.toList.map(pairToKV(c)(_))
 
     val finalTypeParams = keyValues.flatMap {
-      case (name, value) => List(nameTypeFromExpr(c)(name), value.actualType)
+      case (name, value) => List(keyNameToKeyType(c)(name), c.Expr[Any](value).actualType)
     }
     val finalParams = keyValues.map {
-      case (name, value) => value.tree
+      case (name, value) => value
     }
 
     newTuple0(c)(finalTypeParams, finalParams)
@@ -219,19 +190,18 @@ object NTupleMacros {
     import c.universe._
 
     val kv = pairToKV(c)(pair)
-
     val params = wttToParams(c)(wttt)
     val finalSize = params.size / 2 + 1
 
-    val finalKeys = keys(c)(params) :+  keyName(c)(kv._1)
-    val finalTypes = types(c)(params) :+ kv._2.actualType
+    val finalKeys = keys(c)(params) :+ kv._1
+    val finalTypes = types(c)(params) :+ c.Expr[Any](kv._2).actualType
 
     val finalTypeParameters = finalKeys.zip(finalTypes).flatMap {
-      case (key, value) => List(nameType(c)(key), value)
+      case (key, value) => List(keyNameToKeyType(c)(key), value)
     }
 
     val tparams = (1 to params.size / 2) map ((i) => derefField(c)(c.prefix.tree, i))
-    val finalValues = (tparams :+ kv._2.tree).toList
+    val finalValues = (tparams :+ kv._2).toList
 
     newTuple0(c)(finalTypeParameters, finalValues)
   }
