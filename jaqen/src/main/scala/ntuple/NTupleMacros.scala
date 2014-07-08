@@ -94,26 +94,15 @@ object NTupleMacros {
     Select(tree, newTermName("_" + index))
   }
 
-  private def finalAppliedType(c: Context)(finalTypeParams: List[c.universe.Type]): c.universe.Type = {
-    import c.universe._
-    val size = finalTypeParams.size / 2
-    val t: c.universe.Type =
-    if (size == 0) typeOf[ntuple.NTuple0]
-    else if (size == 1) typeOf[ntuple.NTuple1[_,_]]
-    else if (size == 2) typeOf[ntuple.NTuple2[_,_,_,_]]
-    else if (size == 3) typeOf[ntuple.NTuple3[_,_,_,_,_,_]]
-    else if (size == 4) typeOf[ntuple.NTuple4[_,_,_,_,_,_,_,_]]
-    else if (size == 5) typeOf[ntuple.NTuple5[_,_,_,_,_,_,_,_,_,_]]
-    else fail(c)("maximum tuple size is 5. Got " + size)
-    appliedType(t.typeConstructor, finalTypeParams)
-  }
-
   private def newTuple(c: Context)(finalTypeParams: List[c.universe.Type], finalParams: List[c.universe.Tree]) = {
     import c.universe._
-
-    val t = finalAppliedType(c)(finalTypeParams)
-
-    c.Expr[Any](`new`(c)(t, finalParams))
+    try {
+      val rawType = c.mirror.staticClass("ntuple.NTuple" + finalParams.size).toType
+      val t = appliedType(rawType.typeConstructor, finalTypeParams)
+      c.Expr[Any](`new`(c)(t, finalParams))
+    } catch {
+      case e: scala.reflect.internal.MissingRequirementError => fail(c)("no NTuple of size " + finalParams.size)
+    }
   }
 
   def applyImp[T](c: Context)(key: c.Expr[Any])(implicit wttt: c.WeakTypeTag[T]) = {
