@@ -45,6 +45,7 @@ object NTupleMacros {
     import c.universe._
 
     pair.tree match {
+      // TODO: allow tuple2
       case Apply(
              TypeApply(Select(
                  Apply(
@@ -97,6 +98,7 @@ object NTupleMacros {
   private def newTuple(c: Context)(finalTypeParams: List[c.universe.Type], finalParams: List[c.universe.Tree]) = {
     import c.universe._
     try {
+      // TODO: check for duplicates
       val rawType = c.mirror.staticClass("ntuple.NTuple" + finalParams.size).toType
       val t = appliedType(rawType.typeConstructor, finalTypeParams)
       c.Expr[Any](`new`(c)(t, finalParams))
