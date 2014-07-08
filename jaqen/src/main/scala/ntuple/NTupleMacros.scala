@@ -232,3 +232,6 @@ class NTuple5[N1, T1, N2, T2, N3, T3, N4, T4, N5, T5] (val _1: T1, val _2: T2, v
   override def toString = (_1, _2, _3, _4, _5).toString
 }
 
+class NTuple6[N1, T1, N2, T2, N3, T3, N4, T4, N5, T5, N6, T6] (val _1: T1, val _2: T2, val _3: T3, val _4: T4, val _5: T5, val _6: T6) extends NTuple[NTuple6[N1, T1, N2, T2, N3, T3, N4, T4, N5, T5, N6, T6]] {
+  override def toString = (_1, _2, _3, _4, _5, _6).toString
+}
