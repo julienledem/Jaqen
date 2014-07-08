@@ -11,6 +11,11 @@ import scala.reflect.api.Symbols
 
 object NTupleMacros {
 
+  def fail(c: Context)(message: String) = {
+    import c.universe._
+    c.abort(c.enclosingPosition, message)
+  }
+
   def keyName(c: Context)(key: c.Tree): Any = {
     import c.universe._
     key match {
@@ -18,7 +23,7 @@ object NTupleMacros {
       case Apply(Select(Select(Ident(scala), symbol), apply), List(Literal(Constant(key))))
                    if (apply.decoded == "apply" && scala.decoded == "scala")
                      => key
-      case _ => c.abort(c.enclosingPosition, show(key) + " is not a literal")
+      case _ => fail(c)(show(key) + " is not a literal")
     }
   }
 
@@ -31,7 +36,7 @@ object NTupleMacros {
     import c.universe._
     t match {
       case ConstantType(Constant(name)) => name
-      case _ => c.abort(c.enclosingPosition, showRaw(t) + " type is not understood")
+      case _ => fail(c)(showRaw(t) + " type is not understood")
     }
   }
 
@@ -43,7 +48,7 @@ object NTupleMacros {
   def pairToKV(c: Context)(pair: c.Expr[Any]): (Any, c.universe.Tree) = {
     import c.universe._
 
-    (pair.tree match {
+    pair.tree match {
       case Apply(
              TypeApply(Select(
                  Apply(
@@ -55,15 +60,12 @@ object NTupleMacros {
              List(TypeTree())),
              List(value)
           ) if (arrow.decoded == "->" && assoc.decoded == "any2ArrowAssoc")
-             => Some(keyName(c)(key), value)
+             => (keyName(c)(key), value)
       // allow identifiers directly
-      case value@Ident(name) => Some(name.decoded, value)
+      case value@Ident(name) => (name.decoded, value)
       // do we want magically named "expression" -> expression ?
-//      case v => Some((show(v), v))
-      case _ => None
-    }) match {
-      case Some(kv) => kv
-      case _ => c.abort(c.enclosingPosition, show(pair.tree) + " is not a valid key-value pair")
+//      case v => (show(v), v)
+      case _ => fail(c)(show(pair.tree) + " is not a valid key-value pair")
     }
   }
 
