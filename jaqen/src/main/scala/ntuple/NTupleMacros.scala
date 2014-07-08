@@ -106,7 +106,9 @@ object NTupleMacros {
     else if (size == 1) typeOf[ntuple.NTuple1[_,_]]
     else if (size == 2) typeOf[ntuple.NTuple2[_,_,_,_]]
     else if (size == 3) typeOf[ntuple.NTuple3[_,_,_,_,_,_]]
-    else c.abort(c.enclosingPosition, "maximum tuple size is 3. Got " + size)
+    else if (size == 4) typeOf[ntuple.NTuple4[_,_,_,_,_,_,_,_]]
+    else if (size == 5) typeOf[ntuple.NTuple5[_,_,_,_,_,_,_,_,_,_]]
+    else fail(c)("maximum tuple size is 5. Got " + size)
     appliedType(t.typeConstructor, finalTypeParams)
   }
 
