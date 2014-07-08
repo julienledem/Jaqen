@@ -73,7 +73,7 @@ object NTupleMacros {
     import c.universe._
     wtt.tpe match {
       case TypeRef(ThisType(ntuple), name, parameters) if (ntuple.fullName == "ntuple") => parameters
-      case _ => c.abort(c.enclosingPosition, showRaw(wtt) + " is not an understood type")
+      case _ => fail(c)(showRaw(wtt) + " is not an understood type")
     }
   }
 
@@ -98,6 +98,26 @@ object NTupleMacros {
     Select(tree, newTermName("_" + index))
   }
 
+  def finalAppliedType(c: Context)(finalTypeParams: List[c.universe.Type]): c.universe.Type = {
+    import c.universe._
+    val size = finalTypeParams.size / 2
+    val t: c.universe.Type =
+    if (size == 0) typeOf[ntuple.NTuple0]
+    else if (size == 1) typeOf[ntuple.NTuple1[_,_]]
+    else if (size == 2) typeOf[ntuple.NTuple2[_,_,_,_]]
+    else if (size == 3) typeOf[ntuple.NTuple3[_,_,_,_,_,_]]
+    else c.abort(c.enclosingPosition, "maximum tuple size is 3. Got " + size)
+    appliedType(t.typeConstructor, finalTypeParams)
+  }
+
+  def newTuple(c: Context)(finalTypeParams: List[c.universe.Type], finalParams: List[c.universe.Tree]) = {
+    import c.universe._
+
+    val t = finalAppliedType(c)(finalTypeParams)
+
+    c.Expr[Any](`new`(c)(t, finalParams))
+  }
+
   def applyImp[T](c: Context)(key: c.Expr[Any])(implicit wttt: c.WeakTypeTag[T]) = {
     import c.universe._
     val kName = keyName(c)(key.tree)
@@ -109,7 +129,7 @@ object NTupleMacros {
 
     if (r.isEmpty) c.abort(c.enclosingPosition, show(c.prefix.tree) + " does not contain key " + kName)
     else if (r.size == 1) c.Expr[Any](derefField(c)(c.prefix.tree, r(0)))
-    else c.abort(c.enclosingPosition, "more than one result for key " + kName)
+    else fail(c)("more than one result for key " + kName)
   }
 
   def plusplusImpl[T1,T2](c: Context)(t: c.Expr[T2])(implicit wttt1: c.WeakTypeTag[T1], wttt2: c.WeakTypeTag[T2]) = {
@@ -129,7 +149,7 @@ object NTupleMacros {
     val t2params = (1 to params2.size / 2) map ((i) => derefField(c)(t.tree, i))
     val finalValues = (t1params ++ t2params).toList
 
-    newTuple0(c)(finalTypeParameters, finalValues)
+    newTuple(c)(finalTypeParameters, finalValues)
   }
 
   def mkStringImpl[T](c: Context)(implicit wttt: c.WeakTypeTag[T]) = {
@@ -154,18 +174,6 @@ object NTupleMacros {
     }
   }
 
-  def finalAppliedType(c: Context)(finalTypeParams: List[c.universe.Type]) = {
-    import c.universe._
-    val size = finalTypeParams.size / 2
-    val t: c.universe.Type =
-    if (size == 0) typeOf[ntuple.NTuple0]
-    else if (size == 1) typeOf[ntuple.NTuple1[_,_]]
-    else if (size == 2) typeOf[ntuple.NTuple2[_,_,_,_]]
-    else if (size == 3) typeOf[ntuple.NTuple3[_,_,_,_,_,_]]
-    else c.abort(c.enclosingPosition, "maximum tuple size is 3. Got " + size)
-    appliedType(t.typeConstructor, finalTypeParams)
-  }
-
   def newTupleImpl(c: Context)(pairs: c.Expr[Any]*) = {
     import c.universe._
     val keyValues = pairs.toList.map(pairToKV(c)(_))
@@ -177,15 +185,7 @@ object NTupleMacros {
       case (name, value) => value
     }
 
-    newTuple0(c)(finalTypeParams, finalParams)
-  }
-
-  def newTuple0(c: Context)(finalTypeParams: List[c.universe.Type], finalParams: List[c.universe.Tree]) = {
-    import c.universe._
-
-    val t = finalAppliedType(c)(finalTypeParams)
-
-    c.Expr[Any](`new`(c)(t, finalParams))
+    newTuple(c)(finalTypeParams, finalParams)
   }
 
   def plusImpl[T](c: Context)(pair: c.Expr[(Any, Any)])(implicit wttt: c.WeakTypeTag[T]) = {
@@ -205,7 +205,7 @@ object NTupleMacros {
     val tparams = (1 to params.size / 2) map ((i) => derefField(c)(c.prefix.tree, i))
     val finalValues = (tparams :+ kv._2).toList
 
-    newTuple0(c)(finalTypeParameters, finalValues)
+    newTuple(c)(finalTypeParameters, finalValues)
   }
 
 }
@@ -235,5 +235,13 @@ class NTuple2[N1, T1, N2, T2] (val _1: T1, val _2: T2) extends NTuple[NTuple2[N1
 
 class NTuple3[N1, T1, N2, T2, N3, T3] (val _1: T1, val _2: T2, val _3: T3) extends NTuple[NTuple3[N1, T1, N2, T2, N3, T3]] {
   override def toString = (_1, _2, _3).toString
+}
+
+class NTuple4[N1, T1, N2, T2, N3, T3, N4, T4] (val _1: T1, val _2: T2, val _3: T3, val _4: T4) extends NTuple[NTuple4[N1, T1, N2, T2, N3, T3, N4, T4]] {
+  override def toString = (_1, _2, _3, _4).toString
+}
+
+class NTuple5[N1, T1, N2, T2, N3, T3, N4, T4, N5, T5] (val _1: T1, val _2: T2, val _3: T3, val _4: T4, val _5: T5) extends NTuple[NTuple5[N1, T1, N2, T2, N3, T3, N4, T4, N5, T5]] {
+  override def toString = (_1, _2, _3, _4, _5).toString
 }
 
