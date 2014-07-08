@@ -2,21 +2,17 @@ package ntuple
 
 import scala.language.experimental.macros
 import scala.reflect.macros.Context
-import java.io.PrintWriter
-import java.io.FileOutputStream
 import log._
-import java.lang.Boolean
 import NTupleMacros._
-import scala.reflect.api.Symbols
 
 object NTupleMacros {
 
-  def fail(c: Context)(message: String) = {
+  private def fail(c: Context)(message: String) = {
     import c.universe._
     c.abort(c.enclosingPosition, message)
   }
 
-  def keyName(c: Context)(key: c.Tree): Any = {
+  private def keyName(c: Context)(key: c.Tree): Any = {
     import c.universe._
     key match {
       case Literal(Constant(v)) => v
@@ -27,12 +23,12 @@ object NTupleMacros {
     }
   }
 
-  def keyNameToKeyType(c: Context)(name: Any): c.universe.Type = {
+  private def keyNameToKeyType(c: Context)(name: Any): c.universe.Type = {
     import c.universe._
     ConstantType(Constant(name))
   }
 
-  def keyTypeToKeyName(c: Context)(t: c.Type) = {
+  private def keyTypeToKeyName(c: Context)(t: c.Type) = {
     import c.universe._
     t match {
       case ConstantType(Constant(name)) => name
@@ -40,12 +36,12 @@ object NTupleMacros {
     }
   }
 
-  def `new`(c: Context)(t: c.Type, params: List[c.universe.Tree]) = {
+  private def `new`(c: Context)(t: c.Type, params: List[c.universe.Tree]) = {
     import c.universe._
     Apply(Select(New(TypeTree(t)), nme.CONSTRUCTOR), params)
   }
 
-  def pairToKV(c: Context)(pair: c.Expr[Any]): (Any, c.universe.Tree) = {
+  private def pairToKV(c: Context)(pair: c.Expr[Any]): (Any, c.universe.Tree) = {
     import c.universe._
 
     pair.tree match {
@@ -69,7 +65,7 @@ object NTupleMacros {
     }
   }
 
-  def wttToParams(c: Context)(wtt: c.WeakTypeTag[_]) = {
+  private def wttToParams(c: Context)(wtt: c.WeakTypeTag[_]) = {
     import c.universe._
     wtt.tpe match {
       case TypeRef(ThisType(ntuple), name, parameters) if (ntuple.fullName == "ntuple") => parameters
@@ -77,7 +73,7 @@ object NTupleMacros {
     }
   }
 
-  def keys(c: Context)(params: List[c.universe.Type]) = {
+  private def keys(c: Context)(params: List[c.universe.Type]) = {
     import c.universe._
     params
       .zipWithIndex
@@ -85,7 +81,7 @@ object NTupleMacros {
       .map((t) => keyTypeToKeyName(c)(t._1))
   }
 
-  def types(c: Context)(params: List[c.universe.Type]) = {
+  private def types(c: Context)(params: List[c.universe.Type]) = {
     import c.universe._
     params
       .zipWithIndex
@@ -93,12 +89,12 @@ object NTupleMacros {
       .map(_._1)
   }
 
-  def derefField(c: Context)(tree: c.universe.Tree, index: Int) = {
+  private def derefField(c: Context)(tree: c.universe.Tree, index: Int) = {
     import c.universe._
     Select(tree, newTermName("_" + index))
   }
 
-  def finalAppliedType(c: Context)(finalTypeParams: List[c.universe.Type]): c.universe.Type = {
+  private def finalAppliedType(c: Context)(finalTypeParams: List[c.universe.Type]): c.universe.Type = {
     import c.universe._
     val size = finalTypeParams.size / 2
     val t: c.universe.Type =
@@ -112,7 +108,7 @@ object NTupleMacros {
     appliedType(t.typeConstructor, finalTypeParams)
   }
 
-  def newTuple(c: Context)(finalTypeParams: List[c.universe.Type], finalParams: List[c.universe.Tree]) = {
+  private def newTuple(c: Context)(finalTypeParams: List[c.universe.Type], finalParams: List[c.universe.Tree]) = {
     import c.universe._
 
     val t = finalAppliedType(c)(finalTypeParams)
