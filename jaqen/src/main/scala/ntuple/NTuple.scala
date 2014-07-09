@@ -207,6 +207,24 @@ object NTupleMacros {
     newTuple(c)(finalTypeParameters, finalValues)
   }
 
+  def toMapImpl[T](c: Context)(implicit wttt: c.WeakTypeTag[T]) = {
+    import c.universe._
+    val params = wttToParams(c)(wttt)
+    val ts = types(c)(params)
+    val mapParams = keys(c)(params)
+            .zipWithIndex
+            .map {
+              case (name, index) =>
+                Apply(Select(reify(Tuple2).tree, newTermName("apply")),
+                    List(
+                        Literal(Constant(name)),
+                        derefField(c)(c.prefix.tree, index + 1)
+                    )
+                )
+            }
+    c.Expr[Map[Any, Any]](Apply(Select(reify(Map).tree, newTermName("apply")), mapParams))
+  }
+
 }
 
 object Generator {
@@ -226,6 +244,7 @@ trait NTuple[T <: NTuple[T]] {
   def +(pair: (Any, Any)) = macro plusImpl[T]
   def ++[T2 <: NTuple[T2]](t: T2) = macro plusplusImpl[T,T2]
   def mkString = macro mkStringImpl[T]
+  def toMap = macro toMapImpl[T]
 }
 
 object NTuple {

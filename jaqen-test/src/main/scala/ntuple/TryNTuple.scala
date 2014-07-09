@@ -99,7 +99,10 @@ raw param actualType: TypeRef(ThisType(ntuple), ntuple.Foo, List())
     val tuple5 = t("a" -> 1)
     val tuple6 = t("b" -> "bar")
     val tuple7 = tuple5 ++ tuple6
-    println("tuple7 " + tuple7)
+    println("tuple7.toString " + tuple7)
+    println("tuple7.mkString " + tuple7.mkString)
+    println("tuple7.toMap " + tuple7.toMap)
+    val m = t("b" -> "bar").toMap
     // does not compile: tuple7 already contains key a
 //    val tuple8 = tuple7 ++ tuple1 ++ tuple7
 //    println("tuple8 " + tuple8)
