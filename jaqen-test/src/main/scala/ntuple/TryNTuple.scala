@@ -92,15 +92,17 @@ raw param actualType: TypeRef(ThisType(ntuple), ntuple.Foo, List())
     println(tuple3("b"))
     println(tuple3('b))
 
-    val tuple4 = t('a->1, 'a->2)
+    // does not compile: ntuple.NTuple already contains key a
+//    val tuple4 = t('a->1, 'a->2)
 //    println(tuple4('a))
 
     val tuple5 = t("a" -> 1)
     val tuple6 = t("b" -> "bar")
     val tuple7 = tuple5 ++ tuple6
     println("tuple7 " + tuple7)
-    val tuple8 = tuple7 ++ tuple1 ++ tuple7
-    println("tuple8 " + tuple8)
+    // does not compile: tuple7 already contains key a
+//    val tuple8 = tuple7 ++ tuple1 ++ tuple7
+//    println("tuple8 " + tuple8)
 //     println("tuple8 x 2 " + tuple8 ++ tuple8))
   }
 }
