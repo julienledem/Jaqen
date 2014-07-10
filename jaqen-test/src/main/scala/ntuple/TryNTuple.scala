@@ -127,5 +127,28 @@ raw param actualType: TypeRef(ThisType(ntuple), ntuple.Foo, List())
 
     println((t("a" -> 1) -+ ("a" -> 2)).mkString)
 
+    val tuple11 = t('a -> 1, 'b ->2)
+    val tuple12 = tuple11 + ('c -> (tuple11('a) + tuple11('b)))
+    val f = (a: Int, b: Int) => a + b
+//    printExpr((a: Int, b: Int) => a + b)
+
+//    printExpr(f)
+    val tuple13 = tuple11.map(('a, 'b) -> 'c, (a: Int, b: Int) => a + b)
+    println(tuple13.mkString)
+
+//    printExpr({
+//      class Function1Impl extends Function1[(Int, Int) => Any, Any] {
+//        def apply[T](f: (Int,Int)=>T) = new NTuple3(tuple11._1, tuple11._2, f(tuple11._1, tuple11._2))
+//      }
+//      new Function1Impl().apply[Int]((a,b) => a + b)
+//    })
+//
+//    val tuple14 = {
+//      class Function1Impl extends Function1[(Int, Int) => Any, Any] {
+//        def apply[T](f: (Int,Int)=>T) = new NTuple3(tuple11._1, tuple11._2, f(tuple11._1, tuple11._2))
+//      }
+//      new Function1Impl().apply[Int]((a,b) => a + b)
+//    }
+
   }
 }

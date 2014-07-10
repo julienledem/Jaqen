@@ -261,6 +261,58 @@ object NTupleMacros {
     c.Expr[Map[Any, Any]](Apply(Select(reify(Map).tree, newTermName("apply")), mapParams))
   }
 
+  def mapImpl[T](c: Context)(pair: c.Expr[Any], f: c.Expr[Any])(implicit wttt: c.WeakTypeTag[T]) = {
+    import c.universe._
+    val params = wttToParams(c)(wttt)
+    val (sources, target) = pair.tree match {
+      case Apply(
+             TypeApply(
+               Select(
+                 Apply(
+                     TypeApply(Select(scalaPredef, assoc), List(TypeTree())),
+                     List(
+                         Apply(
+                             TypeApply(
+                                 Select(Select(Ident(scala), tupleClass), apply),
+                                 types
+                              ),
+                              sources
+                         )
+                     )
+                 ),
+                 arrow
+             ),
+             List(TypeTree())),
+             List(target)
+          ) if (arrow.decoded == "->"
+                && assoc.decoded == "any2ArrowAssoc"
+                && scala.decoded == "scala"
+                && tupleClass.decoded.startsWith("Tuple")
+                && apply.decoded == "apply")
+             => (sources, target)
+      case _ => fail(c)(show(pair.tree) + " is not a valid mapping")
+    }
+
+    val finalKeys = keys(c)(params) :+ keyName(c)(target)
+
+    val t = f.actualType match {
+      case TypeRef(
+            ThisType(scala),
+            function,
+            types) if (function.fullName.startsWith("scala.Function")) => types.last
+      case _ => fail(c)(show(f) + " is not a valid function")
+    }
+
+    val finalTypes = types(c)(params) :+ t
+
+    val tparams = (0 until params.size / 2) map ((i) => derefField(c)(c.prefix.tree, i))
+    val fParams = sources map (keyName(c)(_)) map ((key) => derefField(c)(c.prefix.tree, keyIndex(c)(c.Expr[Any](Literal(Constant(key))), wttt)))
+    val appF = Apply(Select(f.tree, newTermName("apply")), fParams)
+    val finalValues = (tparams :+ appF).toList
+    newTuple(c)(mkTypeParams(c)(finalKeys, finalTypes), finalValues)
+
+  }
+
 }
 
 object Generator {
@@ -276,17 +328,29 @@ object Generator {
 }
 
 trait NTuple[T <: NTuple[T]] {
-  def apply(key: Any) = macro applyImp[T]
+
   def get(key: Any) = macro applyImp[T]
+  def apply(key: Any) = macro applyImp[T]
+
+  def add(pair: (Any, Any)) = macro plusImpl[T]
   def +(pair: (Any, Any)) = macro plusImpl[T]
+
+  def concat[T2 <: NTuple[T2]](t: T2) = macro plusplusImpl[T,T2]
   def ++[T2 <: NTuple[T2]](t: T2) = macro plusplusImpl[T,T2]
+
+  def remove(key: Any) = macro minusImpl[T]
   def -(key: Any) = macro minusImpl[T]
+
+  def replace(pair: (Any, Any)) = macro replaceImpl[T]
   def -+(pair: (Any, Any)) = macro replaceImpl[T]
 
   def prefix(prefix: String) = macro prefixImpl[T]
 
   // tuple.map(('a, 'b) -> 'c, (a, b) => a + b)
-//  def map(pair: Any, f: Any) = macro mapImpl[T]
+//  def map(pair: Any) = macro mapImpl[T]
+  def map(pair: Any, f: Any) = macro mapImpl[T]
+
+//  def map2(pair: Any) = macro map2Impl[T]
 
   def mkString = macro mkStringImpl[T]
   def toMap = macro toMapImpl[T]
