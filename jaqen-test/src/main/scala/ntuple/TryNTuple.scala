@@ -48,6 +48,9 @@ raw param actualType: TypeRef(ThisType(ntuple), ntuple.Foo, List())
     val map = Map("a" -> 1, "b" -> "boo")
     val ma = map("a")
     val mb = map("b")
+    val map2 = map + ("a" -> 2)
+    val ma2 = map2("a")
+
     // runtime error: key not found: c
 //    val mc = map("c")
 
@@ -103,9 +106,26 @@ raw param actualType: TypeRef(ThisType(ntuple), ntuple.Foo, List())
     println("tuple7.mkString " + tuple7.mkString)
     println("tuple7.toMap " + tuple7.toMap)
     val m = t("b" -> "bar").toMap
+
     // does not compile: tuple7 already contains key a
 //    val tuple8 = tuple7 ++ tuple1 ++ tuple7
+    val tuple8 = tuple7 ++ tuple1.prefix("t1.") ++ tuple7.prefix("t7.")
 //    println("tuple8 " + tuple8)
 //     println("tuple8 x 2 " + tuple8 ++ tuple8))
+
+    val tuple9 = t("a" -> 1).-("a")
+    println((tuple2 - 'b).mkString)
+    println((tuple2 - 'a).mkString)
+    println((tuple2 - 'a - "b").mkString)
+
+    println(tuple7.prefix("foo.").mkString)
+
+    val tuple10 = tuple7.prefix("foo.")
+
+    println(tuple10("foo.a"))
+    println(tuple7.prefix("foo.").apply("foo.a"))
+
+    println((t("a" -> 1) -+ ("a" -> 2)).mkString)
+
   }
 }

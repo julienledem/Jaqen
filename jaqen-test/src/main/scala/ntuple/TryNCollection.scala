@@ -20,7 +20,7 @@ object TryNCollection {
 
     val input = c1.input[Tweet]("tweets")
 
-    input.flatMap(_.content.split(" ")).keyedBy[String]((s) => s).aggregate(_.size).output("wordcount")
+    input.flatMap(_.content.split(" ")).keyedBy[String]((s) => s).countByKey.output("wordcount")
 
     c1.printPlan
 

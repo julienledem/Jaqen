@@ -49,6 +49,7 @@ object DemoNTuple {
       )
       .filter(_('laterAge) < 18)
       .map(_ + ('foo -> "bar"))
+
     println(r)
     println(r.head.mkString)
 

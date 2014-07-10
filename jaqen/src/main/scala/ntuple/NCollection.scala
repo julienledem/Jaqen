@@ -37,16 +37,56 @@ class FlatMappedNCollection[T, PT](val predecessor: NCollection[PT], val f: PT =
 
 class FilteredNCollection[T](val predecessor: NCollection[T], val q: T => Boolean) extends NCollectionWithPredecessors[T](List(predecessor))
 
+abstract class Aggregator[T, AGG] {
+
+  def add(ts: TraversableOnce[T]): Unit
+
+  def combine(other: Aggregator[T, AGG]): Unit
+
+  def result: Option[AGG]
+
+}
+
+class DefaultAggregator[T, AGG] (initialOp: (T) => AGG, addOp: (AGG, T) => AGG, combineOp: (AGG, AGG) => AGG) {
+
+  private var current: Option[AGG] = None
+
+  def add(ts:TraversableOnce[T]): Unit = if (!ts.isEmpty) current = current match {
+    case None => {
+      val it = ts.toIterator
+      val initial = initialOp(it.next)
+      Some(ts.foldLeft(initial)(addOp(_,_)))
+    }
+    case Some(v) => Some(ts.foldLeft(v)(addOp(_,_)))
+  }
+
+  def combine(other: Aggregator[T, AGG]): Unit = current = (current, other.result) match {
+    case (None,  _) => other.result
+    case (Some(v1), Some(v2)) => Some(combineOp(v1, v2))
+    case (_, None) => current
+  }
+
+  def result: Option[AGG] = current
+
+}
+
 class KeyedNCollection[K, T](val predecessor: NCollection[T], val f: T => K) extends NCollectionWithPredecessors[T](List(predecessor)) {
   def join[U](other: KeyedNCollection[K, U]): Joined2NCollection[K, T, U] = new Joined2NCollection(this, other)
   def join[U, V](other: Joined2NCollection[K, U, V]): Joined3NCollection[K, T, U, V] = new Joined3NCollection(this, other.predecessor1, other.predecessor2)
   def join[U, V, W](other: Joined3NCollection[K, U, V, W]): NCollection[(T, U, V, W)] = new Joined4NCollection(this, other.predecessor1, other.predecessor2, other.predecessor3)
 
-  def aggregate[U](f: TraversableOnce[T] => U): AggregatedNCollection[K, U, T] = new AggregatedNCollection(this, f)
+  // based on scala collections aggregate method except we don't want to require a zero element
+  // U is the type of the aggregate
+  // basically an associative semigroup[U] (combop) plus a function that can add T to an existing U (or turn T into when U there's no aggregate yet)
+  def aggregateByKey[U](initial: (T) => U, seqop: (U, T) => U, combop: (U, U) => U): KeyedNCollection[K, (K,U)] = new KeyedNCollection[K, (K, U)](new AggregatedNCollection(this, initial, seqop, combop), _._1)
+
+  def foldByKey(f: (T, T) => T) = aggregateByKey[T]((t) => t, f, f)
+
+  def countByKey = aggregateByKey[Long]((t) => 1, (c, t) => c + 1 , _+_)
+
 }
 
-// TODO: share base class with keyed
-class AggregatedNCollection[K, T, PT](val predecessor: KeyedNCollection[K, PT], val f: TraversableOnce[PT] => T) extends NCollectionWithPredecessors[(K, T)](List(predecessor))
+class AggregatedNCollection[K, T, PT](val predecessor: KeyedNCollection[K, PT], val initial: (PT) => T, val seqop: (T, PT) => T, val combop: (T, T) => T) extends NCollectionWithPredecessors[(K, T)](List(predecessor))
 
 abstract class JoinedNCollection[K, V](predecessors: List[KeyedNCollection[K,_]]) extends NCollectionWithPredecessors[V](predecessors)
 
@@ -171,7 +211,9 @@ class InMemoryExecutor {
         val j = mapToList(joinMaps(joinMaps(joinMaps(toKeyed(j4c.predecessor1), toKeyed(j4c.predecessor2)), toKeyed(j4c.predecessor3)), toKeyed(j4c.predecessor4)))
         j.map { case (((v1, v2), v3), v4) => (v1, v2, v3, v4) }
       }
-      case ac:  AggregatedNCollection[_, _, _] => toKeyed(ac.predecessor).toList.map {case (k, vl) => (k, ac.f(vl)) }
+      case ac:  AggregatedNCollection[_, _, _] => toKeyed(ac.predecessor).toList.map {
+          case (k, vl) => (k, vl.tail.foldLeft(ac.initial(vl.head))(ac.seqop))
+      }
       case fec: ForEachedNCollection[_, _] => {
         val p = plan(fec.predecessor)
         p.foreach(fec.f)

@@ -4,6 +4,8 @@ import scala.language.experimental.macros
 import scala.reflect.macros.Context
 import log._
 import NTupleMacros._
+import scala.collection.IterableLike
+import scala.collection.immutable.Iterable
 
 object NTupleMacros {
 
@@ -92,7 +94,7 @@ object NTupleMacros {
 
   private def derefField(c: Context)(tree: c.universe.Tree, index: Int) = {
     import c.universe._
-    Select(tree, newTermName("_" + index))
+    Select(tree, newTermName("_" + (index + 1)))
   }
 
   private def newTuple(c: Context)(finalTypeParams: List[c.universe.Type], finalParams: List[c.universe.Tree]) = {
@@ -117,38 +119,38 @@ object NTupleMacros {
     }
   }
 
-  def applyImp[T](c: Context)(key: c.Expr[Any])(implicit wttt: c.WeakTypeTag[T]) = {
+  private def mkTypeParams(c: Context)(keys: Iterable[Any], types: Iterable[c.universe.Type]) = keys.zip(types).flatMap {
+        case (key, value) => List(keyNameToKeyType(c)(key), value)
+      }.toList
+
+  private def keyIndex[T](c: Context)(key: c.Expr[Any], wtt: c.WeakTypeTag[T]) = {
     import c.universe._
     val kName = keyName(c)(key.tree)
-    val params = wttToParams(c)(wttt)
-
+    val params = wttToParams(c)(wtt)
     val r = keys(c)(params).zipWithIndex.collect {
-          case (name, index) if (name == kName) => index + 1
+          case (name, index) if (name == kName) => index
         }
-
     if (r.isEmpty) c.abort(c.enclosingPosition, show(c.prefix.tree) + " does not contain key " + kName)
-    else if (r.size == 1) c.Expr[Any](derefField(c)(c.prefix.tree, r(0)))
-    else fail(c)("more than one result for key " + kName)
+    else if (r.size > 1) fail(c)("more than one result for key " + kName)
+    r(0)
+  }
+
+  private def removeIndex[U](i:Int, l: Iterable[U]) = l.zipWithIndex.collect{ case (v, index) if index != i => v } toList
+
+  def applyImp[T](c: Context)(key: c.Expr[Any])(implicit wttt: c.WeakTypeTag[T]) = {
+    import c.universe._
+    c.Expr[Any](derefField(c)(c.prefix.tree, keyIndex(c)(key, wttt)))
   }
 
   def plusplusImpl[T1,T2](c: Context)(t: c.Expr[T2])(implicit wttt1: c.WeakTypeTag[T1], wttt2: c.WeakTypeTag[T2]) = {
     import c.universe._
     val params1 = wttToParams(c)(wttt1)
     val params2 = wttToParams(c)(wttt2)
-    val finalSize = (params1.size + params2.size) / 2
 
-    val finalKeys = keys(c)(params1 ++ params2)
-    val finalTypes = types(c)(params1 ++ params2)
+    val t1params = (0 until params1.size / 2) map ((i) => derefField(c)(c.prefix.tree, i))
+    val t2params = (0 until params2.size / 2) map ((i) => derefField(c)(t.tree, i))
 
-    val finalTypeParameters = finalKeys.zip(finalTypes).flatMap {
-      case (key, value) => List(keyNameToKeyType(c)(key), value)
-    }
-
-    val t1params = (1 to params1.size / 2) map ((i) => derefField(c)(c.prefix.tree, i))
-    val t2params = (1 to params2.size / 2) map ((i) => derefField(c)(t.tree, i))
-    val finalValues = (t1params ++ t2params).toList
-
-    newTuple(c)(finalTypeParameters, finalValues)
+    newTuple(c)(params1 ++ params2, (t1params ++ t2params).toList)
   }
 
   def mkStringImpl[T](c: Context)(implicit wttt: c.WeakTypeTag[T]) = {
@@ -161,7 +163,7 @@ object NTupleMacros {
               case (name, index) => List(
                   Literal(Constant(name)),
                   Literal(Constant(" -> ")),
-                  derefField(c)(c.prefix.tree, index + 1),
+                  derefField(c)(c.prefix.tree, index),
                   Literal(Constant(", "))
               )
             }.dropRight(1)
@@ -190,21 +192,55 @@ object NTupleMacros {
   def plusImpl[T](c: Context)(pair: c.Expr[(Any, Any)])(implicit wttt: c.WeakTypeTag[T]) = {
     import c.universe._
 
-    val kv = pairToKV(c)(pair)
+    val (key, value) = pairToKV(c)(pair)
     val params = wttToParams(c)(wttt)
-    val finalSize = params.size / 2 + 1
 
-    val finalKeys = keys(c)(params) :+ kv._1
-    val finalTypes = types(c)(params) :+ c.Expr[Any](kv._2).actualType
+    val finalKeys = keys(c)(params) :+ key
+    val finalTypes = types(c)(params) :+ c.Expr[Any](value).actualType
 
-    val finalTypeParameters = finalKeys.zip(finalTypes).flatMap {
-      case (key, value) => List(keyNameToKeyType(c)(key), value)
-    }
+    val tparams = (0 until params.size / 2) map ((i) => derefField(c)(c.prefix.tree, i))
+    val finalValues = (tparams :+ value).toList
 
-    val tparams = (1 to params.size / 2) map ((i) => derefField(c)(c.prefix.tree, i))
-    val finalValues = (tparams :+ kv._2).toList
+    newTuple(c)(mkTypeParams(c)(finalKeys, finalTypes), finalValues)
+  }
 
-    newTuple(c)(finalTypeParameters, finalValues)
+  def minusImpl[T](c: Context)(key: c.Expr[Any])(implicit wttt: c.WeakTypeTag[T]) = {
+    import c.universe._
+    val params = wttToParams(c)(wttt)
+    val i = keyIndex(c)(key, wttt)
+    val finalKeys = removeIndex(i, keys(c)(params))
+    val finalTypes = removeIndex(i, types(c)(params))
+    val finalValues = removeIndex(i, 0 until params.size / 2) map ((i) => derefField(c)(c.prefix.tree, i))
+    newTuple(c)(mkTypeParams(c)(finalKeys, finalTypes), finalValues)
+  }
+
+  def replaceImpl[T](c: Context)(pair: c.Expr[(Any, Any)])(implicit wttt: c.WeakTypeTag[T]) = {
+    import c.universe._
+
+    val (key, value) = pairToKV(c)(pair)
+    val params = wttToParams(c)(wttt)
+    val i = keyIndex(c)(c.Expr[Any](Literal(Constant(key))), wttt)
+
+    val finalKeys = removeIndex(i, keys(c)(params)) :+ key
+    val finalTypes = removeIndex(i, types(c)(params)) :+ c.Expr[Any](value).actualType
+
+    val tparams = removeIndex(i, 0 until params.size / 2) map ((i) => derefField(c)(c.prefix.tree, i))
+    val finalValues = (tparams :+ value)
+
+    newTuple(c)(mkTypeParams(c)(finalKeys, finalTypes), finalValues)
+  }
+
+  def prefixImpl[T](c: Context)(prefix: c.Expr[String])(implicit wttt: c.WeakTypeTag[T]) = {
+    import c.universe._
+
+    val prefixString = keyName(c)(prefix.tree)
+    val params = wttToParams(c)(wttt)
+
+    val finalKeys = keys(c)(params).map((a) => prefixString + String.valueOf(a))
+    val finalTypes = types(c)(params)
+
+    val finalValues = (0 until params.size / 2) map ((i) => derefField(c)(c.prefix.tree, i))
+    newTuple(c)(mkTypeParams(c)(finalKeys, finalTypes), finalValues.toList)
   }
 
   def toMapImpl[T](c: Context)(implicit wttt: c.WeakTypeTag[T]) = {
@@ -218,7 +254,7 @@ object NTupleMacros {
                 Apply(Select(reify(Tuple2).tree, newTermName("apply")),
                     List(
                         Literal(Constant(name)),
-                        derefField(c)(c.prefix.tree, index + 1)
+                        derefField(c)(c.prefix.tree, index)
                     )
                 )
             }
@@ -241,8 +277,17 @@ object Generator {
 
 trait NTuple[T <: NTuple[T]] {
   def apply(key: Any) = macro applyImp[T]
+  def get(key: Any) = macro applyImp[T]
   def +(pair: (Any, Any)) = macro plusImpl[T]
   def ++[T2 <: NTuple[T2]](t: T2) = macro plusplusImpl[T,T2]
+  def -(key: Any) = macro minusImpl[T]
+  def -+(pair: (Any, Any)) = macro replaceImpl[T]
+
+  def prefix(prefix: String) = macro prefixImpl[T]
+
+  // tuple.map(('a, 'b) -> 'c, (a, b) => a + b)
+//  def map(pair: Any, f: Any) = macro mapImpl[T]
+
   def mkString = macro mkStringImpl[T]
   def toMap = macro toMapImpl[T]
 }
