@@ -3,6 +3,8 @@ Jaqen
 
 A type-safe heterogenous Map or a Named field Tuple depending how you look at it.
 
+"Speak the names and a man will do the rest"
+
 ## API: 
 https://github.com/julienledem/Jaqen/blob/master/jaqen/src/main/scala/ntuple/NTuple.scala#L355
 
