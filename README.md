@@ -3,7 +3,41 @@ Jaqen
 
 A type-safe heterogenous Map or a Named field Tuple depending how you look at it.
 
-* try it:
+## API:
+
+```
+trait NTuple[T <: NTuple[T]] {
+
+  def get(key: Any) = macro applyImp[T]
+  def apply(key: Any) = macro applyImp[T]
+
+  def add(pair: (Any, Any)) = macro plusImpl[T]
+  def +(pair: (Any, Any)) = macro plusImpl[T]
+
+  def concat[T2 <: NTuple[T2]](t: T2) = macro plusplusImpl[T,T2]
+  def ++[T2 <: NTuple[T2]](t: T2) = macro plusplusImpl[T,T2]
+
+  def remove(key: Any) = macro minusImpl[T]
+  def -(key: Any) = macro minusImpl[T]
+
+  def replace(pair: (Any, Any)) = macro replaceImpl[T]
+  def -+(pair: (Any, Any)) = macro replaceImpl[T]
+
+  def prefix(prefix: String) = macro prefixImpl[T]
+
+  // tuple.map(('a, 'b) -> 'c, (a: Int, b: Int) => a + b)
+  def map(pair: Any, f: Any) = macro mapImpl[T]
+
+  def mkString = macro mkStringImpl[T]
+  def toMap = macro toMapImpl[T]
+}
+
+object NTuple {
+  def t(pairs: Any*) = macro newTupleImpl
+}
+```
+
+## try it:
 ```
 mvn clean compile
 scala -classpath jaqen/target/classes
