@@ -71,18 +71,31 @@ class DefaultAggregator[T, AGG] (initialOp: (T) => AGG, addOp: (AGG, T) => AGG, 
 }
 
 class KeyedNCollection[K, T](val predecessor: NCollection[T], val f: T => K) extends NCollectionWithPredecessors[T](List(predecessor)) {
+
   def join[U](other: KeyedNCollection[K, U]): Joined2NCollection[K, T, U] = new Joined2NCollection(this, other)
   def join[U, V](other: Joined2NCollection[K, U, V]): Joined3NCollection[K, T, U, V] = new Joined3NCollection(this, other.predecessor1, other.predecessor2)
   def join[U, V, W](other: Joined3NCollection[K, U, V, W]): NCollection[(T, U, V, W)] = new Joined4NCollection(this, other.predecessor1, other.predecessor2, other.predecessor3)
 
-  // based on scala collections aggregate method except we don't want to require a zero element
-  // U is the type of the aggregate
-  // basically an associative semigroup[U] (combop) plus a function that can add T to an existing U (or turn T into when U there's no aggregate yet)
-  def aggregateByKey[U](initial: (T) => U, seqop: (U, T) => U, combop: (U, U) => U): KeyedNCollection[K, (K,U)] = new KeyedNCollection[K, (K, U)](new AggregatedNCollection(this, initial, seqop, combop), _._1)
+  /**
+   * similar to aggregateByKey but does not require a zero element
+   */
+  def aggregateByKeyNZ[U](initial: (T) => U, seqop: (U, T) => U, combop: (U, U) => U): KeyedNCollection[K, (K,U)] =
+    new KeyedNCollection[K, (K, U)](new AggregatedNCollection(this, initial, seqop, combop), _._1)
 
-  def foldByKey(f: (T, T) => T) = aggregateByKey[T]((t) => t, f, f)
+    /**
+     * based on scala collections aggregate method
+     * @param U is the type we aggregate on
+     * @param T is the type we aggregate
+     * @param z is the zero for U
+     * @param combop is an associative law on U
+     * @param seqop knows how to add T to the aggregate U.
+     */
+  def aggregateByKey[U](z: U, seqop: (U, T) => U, combop: (U, U) => U): KeyedNCollection[K, (K,U)] =
+    aggregateByKeyNZ[U]((t) => seqop(z, t), seqop, combop)
 
-  def countByKey = aggregateByKey[Long]((t) => 1, (c, t) => c + 1 , _+_)
+  def foldByKey(f: (T, T) => T) = aggregateByKeyNZ[T]((t) => t, f, f)
+
+  def countByKey = aggregateByKeyNZ[Long]((t) => 1, (c, t) => c + 1 , _+_)
 
 }
 
@@ -93,6 +106,7 @@ abstract class JoinedNCollection[K, V](predecessors: List[KeyedNCollection[K,_]]
 class Joined2NCollection[K, T, U](
     val predecessor1: KeyedNCollection[K, T],
     val predecessor2: KeyedNCollection[K, U]) extends JoinedNCollection[K, (T, U)](List(predecessor1, predecessor2)) {
+
   def join[V](other: KeyedNCollection[K, V]): Joined3NCollection[K, T, U, V] = new Joined3NCollection(predecessor1, predecessor2, other)
   def join[V, W](other: Joined2NCollection[K, V, W]): NCollection[(T, U, V, W)] = new Joined4NCollection(predecessor1, predecessor2, other.predecessor1, other.predecessor2)
 }
@@ -101,6 +115,7 @@ class Joined3NCollection[K, T, U, V](
     val predecessor1: KeyedNCollection[K, T],
     val predecessor2: KeyedNCollection[K, U],
     val predecessor3: KeyedNCollection[K, V]) extends JoinedNCollection[K, (T, U, V)](List(predecessor1, predecessor2, predecessor3)) {
+
   def join[W](other: KeyedNCollection[K, W]): NCollection[(T, U, V, W)] = new Joined4NCollection[K, T, U, V, W](predecessor1, predecessor2, predecessor3, other)
 }
 

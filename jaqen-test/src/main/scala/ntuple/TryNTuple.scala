@@ -9,43 +9,11 @@ class Foo {
 
 object TryNTuple {
   def main(args: Array[String]) {
-//     printExpr(println(List("a" -> 0, "b" -> "1")))
-//     printExpr(t("a" -> "FOO", "b" -> 3).mkString)
      println("mkString: " + t("a" -> "FOO", "b" -> 3).mkString)
-
-     //    printExpr(new NTuple1[Any, Foo](new Foo))
-    /*
-               param: new ntuple.NTuple1[Any,ntuple.Foo](new Foo())
-           raw param: Apply(Select(New(TypeTree().setOriginal(AppliedTypeTree(Ident(ntuple.NTuple1), List(TypeTree().setOriginal(Select(Ident(scala), scala.Any)), TypeTree().setOriginal(Ident(ntuple.Foo)))))), nme.CONSTRUCTOR), List(Apply(Select(New(Ident(ntuple.Foo)), nme.CONSTRUCTOR), List())))
-raw param actualType: TypeRef(ThisType(ntuple), ntuple.NTuple1, List(TypeRef(ThisType(scala), scala.Any, List()), TypeRef(ThisType(ntuple), ntuple.Foo, List())))
-     */
-//    println()
-//    printExpr(^("foo"))
-//    val a = ^("foo")
-    /*
-               param: new litsing.LiteralSingleton[String("foo")]()
-           raw param: Apply(Select(New(TypeTree()), nme.CONSTRUCTOR), List())
-raw param actualType: TypeRef(ThisType(litsing), litsing.LiteralSingleton, List(ConstantType(Constant(foo))))
-     */
-
-//    println()
-//    printExpr(new Foo)
-/*
-               param: new Foo()
-           raw param: Apply(Select(New(Ident(ntuple.Foo)), nme.CONSTRUCTOR), List())
-raw param actualType: TypeRef(ThisType(ntuple), ntuple.Foo, List())
-
- */
-
-//    printExpr(NTuple1.t("foo", "bar"))
-
-//    printExpr(NTuple1.t("a", new Foo))
-
     val name = "foo"
     // does not compile: name must be a literal
 //    val tuple0 = NTuple1.t(name, "bar")
-
-    val map = Map("a" -> 1, "b" -> "boo")
+        val map = Map("a" -> 1, "b" -> "boo")
     val ma = map("a")
     val mb = map("b")
     val map2 = map + ("a" -> 2)
@@ -58,6 +26,8 @@ raw param actualType: TypeRef(ThisType(ntuple), ntuple.Foo, List())
     println('symbol.name)
     val tuple000 = t('a -> 1)
     val tuple001 = t("a" -> 1, "b" -> "bar")
+    println(t("a" -> 1, "b" -> "bar") + "")
+    println("" + t("a" -> 1, "b" -> "bar"))
     val b001 = tuple001("b")
     val a001 = tuple001('a)
     // does not compile: tuple001 does not contain key "c"
@@ -133,8 +103,11 @@ raw param actualType: TypeRef(ThisType(ntuple), ntuple.Foo, List())
 //    printExpr((a: Int, b: Int) => a + b)
 
 //    printExpr(f)
-    val tuple13 = tuple11.map(('a, 'b) -> 'c, (a: Int, b: Int) => a + b)
+    val tuple13 = tuple11.map(('a, 'b) -> 'c) { (a: Int, b: Int) => a + b }
+//    val tuple14 = tuple11.map(('a, 'b) -> 'a) { (a: Int, b: Int) => a + b }
     println(tuple13.mkString)
+
+    def foo(a: Int)(b: Int) = a + b
 
 //    printExpr({
 //      class Function1Impl extends Function1[(Int, Int) => Any, Any] {
