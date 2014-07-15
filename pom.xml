@@ -73,7 +73,7 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <github.global.server>github</github.global.server>
-    <scala.version>2.10.3</scala.version>
+    <scala.version>2.10.4</scala.version>
   </properties>
 
   <modules>

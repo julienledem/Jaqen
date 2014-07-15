@@ -79,7 +79,7 @@ object TryNTuple {
 
     // does not compile: tuple7 already contains key a
 //    val tuple8 = tuple7 ++ tuple1 ++ tuple7
-    val tuple8 = tuple7 ++ tuple1.prefix("t1.") ++ tuple7.prefix("t7.")
+//restore //    val tuple8 = tuple7 ++ tuple1.prefix("t1.") ++ tuple7.prefix("t7.")
 //    println("tuple8 " + tuple8)
 //     println("tuple8 x 2 " + tuple8 ++ tuple8))
 
@@ -122,6 +122,29 @@ object TryNTuple {
 //      }
 //      new Function1Impl().apply[Int]((a,b) => a + b)
 //    }
+    val tuple15 = t('a -> 1, 'b -> 2)
+    println("blah")
+    def fooFunction[N1, T1, N2, T2](tuple: NTuple2[N1, T1, N2, T2]) = {
+//      printExpr(new ntuple.NFunction2[T1, T2, Any] (tuple._1, tuple._2, tuple))
+      printExpr(new ntuple.NFunction2[T1, T2, N2] (tuple._1, tuple._2, tuple) {
+        type NTUPLENP1[N, T] = NTuple3[N1, T1, N2, T2, N, T]
+      })
+      new ntuple.NFunction2[T1, T2, Any] (tuple._1, tuple._2, tuple) {
+        type NTUPLENP1[N, T] = NTuple3[N1, T1, N2, T2, N, T]
+      }
+    }
+    val foof1 = fooFunction(tuple15)
+    val foofr1 = foof1 { (a, b) => a + b }
+    val tuple16 = fooFunction(tuple15) { (a, b) => a + b }
+//    println (tuple16.mkString)
+
+    val foof = tuple15.map2(('a, 'b) -> 'c)
+    val foofr = foof.apply((a, b) => a + b)
+//println (foofr.mkString)
+    val tuple17 = tuple15.map2(('a, 'b) -> 'c).apply(_ + _)
+    println ("WOOHOO")
+    println (tuple17.mkString)
+//    val tuple18 = tuple15.map2(('a, 'b) -> 'c) { _ + _ }
 
   }
 }
